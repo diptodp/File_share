@@ -1,20 +1,5 @@
 // Get file info by code
-
-// Access the global file store
-let fileStore = global.fileStore || new Map();
-global.fileStore = fileStore;
-
-// Clean up expired files
-function cleanupExpiredFiles() {
-  const now = Date.now();
-  
-  for (const [code, fileData] of fileStore.entries()) {
-    if (now > fileData.expiresAt) {
-      fileStore.delete(code);
-      console.log(`Cleaned up expired file with code: ${code}`);
-    }
-  }
-}
+const { getFile } = require('../storage');
 
 export default function handler(req, res) {
   // Enable CORS
@@ -31,22 +16,14 @@ export default function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Clean up expired files before checking
-  cleanupExpiredFiles();
-  
   const { code } = req.query;
-  const fileData = fileStore.get(code);
+  const fileData = getFile(code);
 
   if (!fileData) {
     return res.status(404).json({ error: 'File not found or expired' });
   }
 
   const now = Date.now();
-  if (now > fileData.expiresAt) {
-    fileStore.delete(code);
-    return res.status(404).json({ error: 'File expired' });
-  }
-
   res.json({
     code: fileData.code,
     filename: fileData.originalName,

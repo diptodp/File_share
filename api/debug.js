@@ -1,4 +1,4 @@
-// Health check endpoint
+// Debug endpoint to check storage state
 const { getStats } = require('./storage');
 
 export default function handler(req, res) {
@@ -17,13 +17,18 @@ export default function handler(req, res) {
   }
 
   const stats = getStats();
-
-  res.json({
-    status: 'ok',
+  
+  // Get all global keys for debugging
+  const globalKeys = Object.keys(global).filter(key => 
+    key.includes('COFFEE') || key.includes('fileStore') || key.includes('storage')
+  );
+  
+  res.json({ 
+    status: 'debug',
     timestamp: new Date().toISOString(),
-    activeFiles: stats.totalFiles,
-    lastCleanup: new Date(stats.lastCleanup).toISOString(),
-    uptime: Math.round(stats.uptime / 1000) + 's',
-    message: '☕ Server is brewing and ready to serve!'
+    stats: stats,
+    globalKeys: globalKeys,
+    globalStorageExists: !!global.COFFEE_FILE_SHARE_STORAGE,
+    message: '☕ Debug info for coffee-powered storage!'
   });
 }

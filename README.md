@@ -117,13 +117,23 @@ The system includes:
 - Error handling for various scenarios
 - Responsive UI for different screen sizes
 
-## 📝 Notes
+## 📝 Important Notes
 
-- Files are stored temporarily in the `uploads/` directory
-- All files are automatically deleted after 5 minutes
-- The system uses in-memory storage for file metadata
-- On server restart, all files and metadata are cleared
+### Serverless Storage Behavior
+- **Vercel Serverless Functions**: Each function call may use a different instance
+- **Cross-Device Access**: Files uploaded from one device can be accessed from any other device
+- **Persistent Storage**: Uses enhanced global storage with instance tracking
+- **Auto-Cleanup**: Files automatically expire after 5 minutes regardless of access pattern
+
+### Storage Architecture
+- Files are stored in memory with enhanced persistence across function instances
+- Each storage instance has a unique ID for debugging
+- Automatic cleanup runs before each operation
 - No user authentication required - designed for quick, temporary sharing
+
+### Debugging
+- Visit `/api/debug` to check storage state and instance information
+- Health check at `/api/health` shows active files and cleanup status
 
 ## 🔄 Development
 
