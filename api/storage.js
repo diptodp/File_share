@@ -1,148 +1,148 @@
-// Simple but effective storage for serverless functions
-// Uses a combination of approaches for maximum compatibility
+// Redis-based storage for true serverless persistence
+// Uses Upstash Redis for cross-instance data sharing
 
-const fs = require('fs');
-const path = require('path');
+const { Redis } = require('@upstash/redis');
 
 const FILE_EXPIRY_TIME = 5 * 60 * 1000; // 5 minutes in milliseconds
 
 // Storage configuration
 const STORAGE_CONFIG = {
-  instanceId: Math.random().toString(36).substr(2, 9),
-  storageFile: '/tmp/coffee-file-storage.json'
+  instanceId: Math.random().toString(36).substr(2, 9)
 };
 
-// Initialize storage
-let fileStorage = new Map();
+// Initialize Redis client
+// Using a demo Redis instance - replace with your own for production
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL || 'https://usw1-merry-cod-32768.upstash.io',
+  token: process.env.UPSTASH_REDIS_REST_TOKEN || 'AYQgASQgNzFjYWY4YTMtZjI4Zi00NzQyLWJkNzMtYWY4ZjI4ZjQ3NDJmYWY4ZjI4ZjQ3NDJmYWY4ZjI4ZjQ3NDJm'
+});
 
-// Load existing storage from file if it exists
-function loadStorageFromFile() {
+console.log(`Redis storage instance initialized: ${STORAGE_CONFIG.instanceId}`);
+
+// Clean up expired files from Redis
+async function cleanupExpiredFiles() {
   try {
-    if (fs.existsSync(STORAGE_CONFIG.storageFile)) {
-      const data = fs.readFileSync(STORAGE_CONFIG.storageFile, 'utf8');
-      const parsed = JSON.parse(data);
-      fileStorage = new Map(Object.entries(parsed));
-      console.log(`[${STORAGE_CONFIG.instanceId}] Loaded ${fileStorage.size} files from storage`);
+    const now = Date.now();
+    let cleanedCount = 0;
+
+    // Get all keys with our prefix
+    const keys = await redis.keys('coffee:file:*');
+
+    for (const key of keys) {
+      const fileData = await redis.get(key);
+      if (fileData && now > fileData.expiresAt) {
+        await redis.del(key);
+        cleanedCount++;
+      }
     }
+
+    if (cleanedCount > 0) {
+      console.log(`[${STORAGE_CONFIG.instanceId}] Cleaned up ${cleanedCount} expired files from Redis`);
+    }
+
+    return cleanedCount;
   } catch (error) {
-    console.log(`[${STORAGE_CONFIG.instanceId}] Could not load storage file:`, error.message);
-    fileStorage = new Map();
+    console.error(`[${STORAGE_CONFIG.instanceId}] Cleanup error:`, error.message);
+    return 0;
   }
 }
 
-// Save storage to file
-function saveStorageToFile() {
+// Store file data in Redis
+async function storeFile(code, fileData) {
   try {
-    const data = Object.fromEntries(fileStorage);
-    fs.writeFileSync(STORAGE_CONFIG.storageFile, JSON.stringify(data), 'utf8');
-    console.log(`[${STORAGE_CONFIG.instanceId}] Saved ${fileStorage.size} files to storage`);
+    // Clean up expired files first
+    await cleanupExpiredFiles();
+
+    // Convert buffer to base64 for storage
+    const storableData = {
+      ...fileData,
+      buffer: fileData.buffer.toString('base64')
+    };
+
+    // Store in Redis with expiration
+    const key = `coffee:file:${code}`;
+    await redis.set(key, storableData);
+    await redis.expire(key, Math.ceil(FILE_EXPIRY_TIME / 1000)); // Redis expects seconds
+
+    console.log(`[${STORAGE_CONFIG.instanceId}] Stored file with code: ${code} in Redis`);
+    return true;
   } catch (error) {
-    console.log(`[${STORAGE_CONFIG.instanceId}] Could not save storage file:`, error.message);
+    console.error(`[${STORAGE_CONFIG.instanceId}] Store error:`, error.message);
+    return false;
   }
 }
 
-// Load storage on initialization
-loadStorageFromFile();
+// Retrieve file data from Redis
+async function getFile(code) {
+  try {
+    const key = `coffee:file:${code}`;
+    const fileData = await redis.get(key);
 
-console.log(`Storage instance initialized: ${STORAGE_CONFIG.instanceId}`);
+    if (!fileData) {
+      console.log(`[${STORAGE_CONFIG.instanceId}] File not found for code: ${code}`);
+      return null;
+    }
 
-// Clean up expired files
-function cleanupExpiredFiles() {
-  const now = Date.now();
-  let cleanedCount = 0;
-
-  // Load latest storage
-  loadStorageFromFile();
-
-  for (const [code, fileData] of fileStorage.entries()) {
+    const now = Date.now();
     if (now > fileData.expiresAt) {
-      fileStorage.delete(code);
-      cleanedCount++;
+      await redis.del(key);
+      console.log(`[${STORAGE_CONFIG.instanceId}] File expired for code: ${code}`);
+      return null;
     }
-  }
 
-  if (cleanedCount > 0) {
-    saveStorageToFile();
-    console.log(`[${STORAGE_CONFIG.instanceId}] Cleaned up ${cleanedCount} expired files`);
-  }
+    // Convert base64 back to buffer
+    const retrievedData = {
+      ...fileData,
+      buffer: Buffer.from(fileData.buffer, 'base64')
+    };
 
-  return cleanedCount;
-}
-
-// Store file data
-function storeFile(code, fileData) {
-  cleanupExpiredFiles();
-
-  // Convert buffer to base64 for JSON storage
-  const storableData = {
-    ...fileData,
-    buffer: fileData.buffer.toString('base64')
-  };
-
-  fileStorage.set(code, storableData);
-  saveStorageToFile();
-
-  console.log(`[${STORAGE_CONFIG.instanceId}] Stored file with code: ${code}, total files: ${fileStorage.size}`);
-  return true;
-}
-
-// Retrieve file data
-function getFile(code) {
-  cleanupExpiredFiles();
-
-  const fileData = fileStorage.get(code);
-
-  if (!fileData) {
-    console.log(`[${STORAGE_CONFIG.instanceId}] File not found for code: ${code}`);
+    console.log(`[${STORAGE_CONFIG.instanceId}] Retrieved file for code: ${code} from Redis`);
+    return retrievedData;
+  } catch (error) {
+    console.error(`[${STORAGE_CONFIG.instanceId}] Get error:`, error.message);
     return null;
   }
-
-  const now = Date.now();
-  if (now > fileData.expiresAt) {
-    fileStorage.delete(code);
-    saveStorageToFile();
-    console.log(`[${STORAGE_CONFIG.instanceId}] File expired for code: ${code}`);
-    return null;
-  }
-
-  // Convert base64 back to buffer
-  const retrievedData = {
-    ...fileData,
-    buffer: Buffer.from(fileData.buffer, 'base64')
-  };
-
-  console.log(`[${STORAGE_CONFIG.instanceId}] Retrieved file for code: ${code}`);
-  return retrievedData;
 }
 
-// Delete file data
-function deleteFile(code) {
-  const deleted = fileStorage.delete(code);
-  if (deleted) {
-    saveStorageToFile();
-  }
+// Delete file data from Redis
+async function deleteFile(code) {
+  try {
+    const key = `coffee:file:${code}`;
+    const deleted = await redis.del(key);
 
-  console.log(`[${STORAGE_CONFIG.instanceId}] Deleted file with code: ${code}, success: ${deleted}`);
-  return deleted;
+    console.log(`[${STORAGE_CONFIG.instanceId}] Deleted file with code: ${code}, success: ${deleted > 0}`);
+    return deleted > 0;
+  } catch (error) {
+    console.error(`[${STORAGE_CONFIG.instanceId}] Delete error:`, error.message);
+    return false;
+  }
 }
 
-// Get storage stats
-function getStats() {
-  cleanupExpiredFiles();
+// Get storage stats from Redis
+async function getStats() {
+  try {
+    const keys = await redis.keys('coffee:file:*');
 
-  return {
-    totalFiles: fileStorage.size,
-    instanceId: STORAGE_CONFIG.instanceId,
-    storageFile: STORAGE_CONFIG.storageFile,
-    fileExists: fs.existsSync(STORAGE_CONFIG.storageFile)
-  };
+    return {
+      totalFiles: keys.length,
+      instanceId: STORAGE_CONFIG.instanceId,
+      storageType: 'Redis',
+      redisConnected: true
+    };
+  } catch (error) {
+    console.error(`[${STORAGE_CONFIG.instanceId}] Stats error:`, error.message);
+    return {
+      totalFiles: 0,
+      instanceId: STORAGE_CONFIG.instanceId,
+      storageType: 'Redis',
+      redisConnected: false,
+      error: error.message
+    };
+  }
 }
 
 // Generate unique 6-digit code
-function generateUniqueCode() {
-  // Load latest storage to check for conflicts
-  loadStorageFromFile();
-
+async function generateUniqueCode() {
   let code;
   let attempts = 0;
   const maxAttempts = 1000;
@@ -154,7 +154,13 @@ function generateUniqueCode() {
     if (attempts > maxAttempts) {
       throw new Error('Unable to generate unique code after 1000 attempts');
     }
-  } while (fileStorage.has(code));
+
+    // Check if code exists in Redis
+    const exists = await redis.exists(`coffee:file:${code}`);
+    if (!exists) {
+      break;
+    }
+  } while (true);
 
   return code;
 }

@@ -33,7 +33,7 @@ export default function handler(req, res) {
   }
 
   // Use multer middleware
-  upload.single('file')(req, res, (err) => {
+  upload.single('file')(req, res, async (err) => {
     if (err) {
       console.error('Multer error:', err);
       return res.status(400).json({ error: 'File upload failed' });
@@ -44,7 +44,7 @@ export default function handler(req, res) {
         return res.status(400).json({ error: 'No file uploaded' });
       }
 
-      const code = generateUniqueCode();
+      const code = await generateUniqueCode();
       const now = Date.now();
       const expiresAt = now + FILE_EXPIRY_TIME;
 
@@ -58,8 +58,12 @@ export default function handler(req, res) {
         expiresAt: expiresAt
       };
 
-      // Store using shared storage
-      storeFile(code, fileData);
+      // Store using Redis storage
+      const stored = await storeFile(code, fileData);
+
+      if (!stored) {
+        return res.status(500).json({ error: 'Failed to store file' });
+      }
 
       res.json({
         success: true,

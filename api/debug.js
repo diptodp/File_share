@@ -1,7 +1,7 @@
 // Debug endpoint to check storage state
 const { getStats } = require('./storage');
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -16,19 +16,22 @@ export default function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const stats = getStats();
-  
-  // Get all global keys for debugging
-  const globalKeys = Object.keys(global).filter(key => 
-    key.includes('COFFEE') || key.includes('fileStore') || key.includes('storage')
-  );
-  
-  res.json({ 
-    status: 'debug',
-    timestamp: new Date().toISOString(),
-    stats: stats,
-    globalKeys: globalKeys,
-    globalStorageExists: !!global.COFFEE_FILE_SHARE_STORAGE,
-    message: '☕ Debug info for coffee-powered storage!'
-  });
+  try {
+    const stats = await getStats();
+
+    res.json({
+      status: 'debug',
+      timestamp: new Date().toISOString(),
+      stats: stats,
+      storageType: 'Redis',
+      message: '☕ Debug info for Redis-powered storage!'
+    });
+  } catch (error) {
+    console.error('Debug error:', error);
+    res.status(500).json({
+      status: 'debug-error',
+      message: 'Debug failed',
+      error: error.message
+    });
+  }
 }

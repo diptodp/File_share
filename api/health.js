@@ -1,7 +1,7 @@
 // Health check endpoint
 const { getStats } = require('./storage');
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -16,14 +16,24 @@ export default function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const stats = getStats();
+  try {
+    const stats = await getStats();
 
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    activeFiles: stats.totalFiles,
-    lastCleanup: new Date(stats.lastCleanup).toISOString(),
-    uptime: Math.round(stats.uptime / 1000) + 's',
-    message: '☕ Server is brewing and ready to serve!'
-  });
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      activeFiles: stats.totalFiles,
+      storageType: stats.storageType,
+      redisConnected: stats.redisConnected,
+      instanceId: stats.instanceId,
+      message: '☕ Server is brewing and ready to serve!'
+    });
+  } catch (error) {
+    console.error('Health check error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Health check failed',
+      error: error.message
+    });
+  }
 }
