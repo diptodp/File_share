@@ -9,7 +9,12 @@
     "vercel-build": "echo 'Building for Vercel...'",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["file-sharing", "temporary", "coffee", "vercel"],
+  "keywords": [
+    "file-sharing",
+    "temporary",
+    "coffee",
+    "vercel"
+  ],
   "author": "Coffee-Powered Developer ☕",
   "license": "ISC",
   "dependencies": {
@@ -17,6 +22,7 @@
     "express": "^5.1.0",
     "fs-extra": "^11.3.0",
     "multer": "^2.0.2",
+    "node-fetch": "^2.6.7",
     "path": "^0.12.7"
   }
 }
