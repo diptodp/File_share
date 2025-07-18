@@ -1,0 +1,22 @@
+{
+  "name": "coffee-file-share",
+  "version": "1.0.0",
+  "description": "☕ A temporary file sharing system built with lots of coffee",
+  "main": "api/index.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "vercel-build": "echo 'Building for Vercel...'",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["file-sharing", "temporary", "coffee", "vercel"],
+  "author": "Coffee-Powered Developer ☕",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "fs-extra": "^11.3.0",
+    "multer": "^2.0.2",
+    "path": "^0.12.7"
+  }
+}
