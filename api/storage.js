@@ -1,86 +1,88 @@
-// External storage utility for serverless functions
-// Uses a simple in-memory cache with HTTP fallback for true persistence
+// Simple but effective storage for serverless functions
+// Uses a combination of approaches for maximum compatibility
+
+const fs = require('fs');
+const path = require('path');
 
 const FILE_EXPIRY_TIME = 5 * 60 * 1000; // 5 minutes in milliseconds
 
-// Simple in-memory cache for performance
-const cache = new Map();
-let lastCacheCleanup = Date.now();
-
 // Storage configuration
 const STORAGE_CONFIG = {
-  // Use a simple HTTP-based storage for persistence
-  // This is a fallback approach that works across all serverless instances
-  useCache: true,
-  cacheTimeout: 30000, // 30 seconds cache timeout
-  instanceId: Math.random().toString(36).substr(2, 9)
+  instanceId: Math.random().toString(36).substr(2, 9),
+  storageFile: '/tmp/coffee-file-storage.json'
 };
+
+// Initialize storage
+let fileStorage = new Map();
+
+// Load existing storage from file if it exists
+function loadStorageFromFile() {
+  try {
+    if (fs.existsSync(STORAGE_CONFIG.storageFile)) {
+      const data = fs.readFileSync(STORAGE_CONFIG.storageFile, 'utf8');
+      const parsed = JSON.parse(data);
+      fileStorage = new Map(Object.entries(parsed));
+      console.log(`[${STORAGE_CONFIG.instanceId}] Loaded ${fileStorage.size} files from storage`);
+    }
+  } catch (error) {
+    console.log(`[${STORAGE_CONFIG.instanceId}] Could not load storage file:`, error.message);
+    fileStorage = new Map();
+  }
+}
+
+// Save storage to file
+function saveStorageToFile() {
+  try {
+    const data = Object.fromEntries(fileStorage);
+    fs.writeFileSync(STORAGE_CONFIG.storageFile, JSON.stringify(data), 'utf8');
+    console.log(`[${STORAGE_CONFIG.instanceId}] Saved ${fileStorage.size} files to storage`);
+  } catch (error) {
+    console.log(`[${STORAGE_CONFIG.instanceId}] Could not save storage file:`, error.message);
+  }
+}
+
+// Load storage on initialization
+loadStorageFromFile();
 
 console.log(`Storage instance initialized: ${STORAGE_CONFIG.instanceId}`);
 
-// Clean up expired files from both cache and global storage
+// Clean up expired files
 function cleanupExpiredFiles() {
   const now = Date.now();
   let cleanedCount = 0;
 
-  // Only cleanup if it's been more than 30 seconds since last cleanup
-  if (now - lastCacheCleanup < 30000) {
-    return 0;
-  }
+  // Load latest storage
+  loadStorageFromFile();
 
-  // Clean up cache
-  for (const [code, fileData] of cache.entries()) {
+  for (const [code, fileData] of fileStorage.entries()) {
     if (now > fileData.expiresAt) {
-      cache.delete(code);
+      fileStorage.delete(code);
       cleanedCount++;
     }
   }
-
-  // Clean up global storage
-  for (const [code, fileData] of globalThis.COFFEE_SHARED_STORAGE.entries()) {
-    if (now > fileData.expiresAt) {
-      globalThis.COFFEE_SHARED_STORAGE.delete(code);
-      cleanedCount++;
-    }
-  }
-
-  lastCacheCleanup = now;
 
   if (cleanedCount > 0) {
+    saveStorageToFile();
     console.log(`[${STORAGE_CONFIG.instanceId}] Cleaned up ${cleanedCount} expired files`);
   }
 
   return cleanedCount;
 }
 
-// Create a truly global storage that persists across all instances
-// This uses a more aggressive approach to ensure persistence
-if (typeof globalThis.COFFEE_SHARED_STORAGE === 'undefined') {
-  globalThis.COFFEE_SHARED_STORAGE = new Map();
-  globalThis.COFFEE_STORAGE_STATS = {
-    created: Date.now(),
-    lastAccess: Date.now(),
-    instanceCount: 0
-  };
-  console.log('Created new global shared storage');
-}
-
-// Increment instance counter
-globalThis.COFFEE_STORAGE_STATS.instanceCount++;
-globalThis.COFFEE_STORAGE_STATS.lastAccess = Date.now();
-
 // Store file data
 function storeFile(code, fileData) {
   cleanupExpiredFiles();
 
-  globalThis.COFFEE_SHARED_STORAGE.set(code, fileData);
-  globalThis.COFFEE_STORAGE_STATS.lastAccess = Date.now();
+  // Convert buffer to base64 for JSON storage
+  const storableData = {
+    ...fileData,
+    buffer: fileData.buffer.toString('base64')
+  };
 
-  console.log(`[${STORAGE_CONFIG.instanceId}] Stored file with code: ${code}, total files: ${globalThis.COFFEE_SHARED_STORAGE.size}`);
+  fileStorage.set(code, storableData);
+  saveStorageToFile();
 
-  // Also store in local cache for faster access
-  cache.set(code, fileData);
-
+  console.log(`[${STORAGE_CONFIG.instanceId}] Stored file with code: ${code}, total files: ${fileStorage.size}`);
   return true;
 }
 
@@ -88,17 +90,7 @@ function storeFile(code, fileData) {
 function getFile(code) {
   cleanupExpiredFiles();
 
-  // Try cache first
-  let fileData = cache.get(code);
-
-  // If not in cache, try global storage
-  if (!fileData) {
-    fileData = globalThis.COFFEE_SHARED_STORAGE.get(code);
-    if (fileData) {
-      // Add to cache for next time
-      cache.set(code, fileData);
-    }
-  }
+  const fileData = fileStorage.get(code);
 
   if (!fileData) {
     console.log(`[${STORAGE_CONFIG.instanceId}] File not found for code: ${code}`);
@@ -107,23 +99,28 @@ function getFile(code) {
 
   const now = Date.now();
   if (now > fileData.expiresAt) {
-    // Remove from both cache and global storage
-    cache.delete(code);
-    globalThis.COFFEE_SHARED_STORAGE.delete(code);
+    fileStorage.delete(code);
+    saveStorageToFile();
     console.log(`[${STORAGE_CONFIG.instanceId}] File expired for code: ${code}`);
     return null;
   }
 
-  globalThis.COFFEE_STORAGE_STATS.lastAccess = Date.now();
+  // Convert base64 back to buffer
+  const retrievedData = {
+    ...fileData,
+    buffer: Buffer.from(fileData.buffer, 'base64')
+  };
+
   console.log(`[${STORAGE_CONFIG.instanceId}] Retrieved file for code: ${code}`);
-  return fileData;
+  return retrievedData;
 }
 
 // Delete file data
 function deleteFile(code) {
-  cache.delete(code);
-  const deleted = globalThis.COFFEE_SHARED_STORAGE.delete(code);
-  globalThis.COFFEE_STORAGE_STATS.lastAccess = Date.now();
+  const deleted = fileStorage.delete(code);
+  if (deleted) {
+    saveStorageToFile();
+  }
 
   console.log(`[${STORAGE_CONFIG.instanceId}] Deleted file with code: ${code}, success: ${deleted}`);
   return deleted;
@@ -134,18 +131,18 @@ function getStats() {
   cleanupExpiredFiles();
 
   return {
-    totalFiles: globalThis.COFFEE_SHARED_STORAGE.size,
-    cacheSize: cache.size,
-    lastCleanup: lastCacheCleanup,
-    uptime: Date.now() - globalThis.COFFEE_STORAGE_STATS.created,
+    totalFiles: fileStorage.size,
     instanceId: STORAGE_CONFIG.instanceId,
-    instanceCount: globalThis.COFFEE_STORAGE_STATS.instanceCount,
-    lastAccess: globalThis.COFFEE_STORAGE_STATS.lastAccess
+    storageFile: STORAGE_CONFIG.storageFile,
+    fileExists: fs.existsSync(STORAGE_CONFIG.storageFile)
   };
 }
 
 // Generate unique 6-digit code
 function generateUniqueCode() {
+  // Load latest storage to check for conflicts
+  loadStorageFromFile();
+
   let code;
   let attempts = 0;
   const maxAttempts = 1000;
@@ -157,7 +154,7 @@ function generateUniqueCode() {
     if (attempts > maxAttempts) {
       throw new Error('Unable to generate unique code after 1000 attempts');
     }
-  } while (globalThis.COFFEE_SHARED_STORAGE.has(code) || cache.has(code));
+  } while (fileStorage.has(code));
 
   return code;
 }
