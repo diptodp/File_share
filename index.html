@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>☕ Coffee-Powered File Share</title>
+    <link rel="stylesheet" href="public/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 Temporary File Share ☕</h1>
+            <p>Share files quickly and securely with auto-deletion after 5 minutes</p>
+            <p class="coffee-tagline">✨ Brewing up secure file sharing, one upload at a time ✨</p>
+        </header>
+
+        <main>
+            <!-- Upload Section -->
+            <section id="upload-section" class="section">
+                <h2>📤 Upload File</h2>
+                <div class="upload-area" id="upload-area">
+                    <div class="upload-content">
+                        <div class="upload-icon">📁</div>
+                        <p>Drag & drop your file here or <span class="browse-text">browse</span></p>
+                        <p class="file-limit">Max file size: 15MB</p>
+                        <input type="file" id="file-input" accept="*/*" hidden>
+                    </div>
+                </div>
+                
+                <div id="upload-progress" class="progress-container" style="display: none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                    <div class="progress-text" id="progress-text">Uploading...</div>
+                </div>
+
+                <div id="upload-result" class="result-container" style="display: none;">
+                    <div class="success-message">
+                        <h3>✅ Upload Successful!</h3>
+                        <div class="code-display">
+                            <label>Your sharing code:</label>
+                            <div class="code-value" id="sharing-code"></div>
+                            <button id="copy-code-btn" class="copy-btn">📋 Copy Code</button>
+                        </div>
+                        <div class="file-info">
+                            <p><strong>File:</strong> <span id="uploaded-filename"></span></p>
+                            <p><strong>Size:</strong> <span id="uploaded-filesize"></span></p>
+                            <p><strong>Expires in:</strong> <span id="upload-timer" class="timer"></span></p>
+                        </div>
+                        <button id="upload-another-btn" class="secondary-btn">Upload Another File</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Download Section -->
+            <section id="download-section" class="section">
+                <h2>📥 Download File</h2>
+                <div class="code-input-container">
+                    <input type="text" id="code-input" placeholder="Enter 6-digit code" maxlength="6" pattern="[0-9]{6}">
+                    <button id="check-code-btn" class="primary-btn">Check Code</button>
+                </div>
+
+                <div id="download-result" class="result-container" style="display: none;">
+                    <div class="file-details">
+                        <h3>📄 File Ready for Download</h3>
+                        <div class="file-info">
+                            <p><strong>File:</strong> <span id="download-filename"></span></p>
+                            <p><strong>Size:</strong> <span id="download-filesize"></span></p>
+                            <p><strong>Time remaining:</strong> <span id="download-timer" class="timer"></span></p>
+                        </div>
+                        <button id="download-btn" class="primary-btn download-btn">⬇️ Download File</button>
+                        <button id="check-another-btn" class="secondary-btn">Check Another Code</button>
+                    </div>
+                </div>
+
+                <div id="download-error" class="error-container" style="display: none;">
+                    <div class="error-message">
+                        <h3>❌ Error</h3>
+                        <p id="error-text"></p>
+                        <button id="try-again-btn" class="secondary-btn">Try Again</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Files are automatically deleted after 5 minutes for security.</p>
+            <div class="coffee-footer">
+                <p>☕ Built with lots of coffee and sleepless nights ☕</p>
+                <p class="coffee-subtitle">Fueled by caffeine, powered by code</p>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Toast notifications -->
+    <div id="toast" class="toast" style="display: none;"></div>
+
+    <script src="public/script.js"></script>
+</body>
+</html>
