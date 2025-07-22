@@ -10,11 +10,10 @@ const STORAGE_CONFIG = {
   instanceId: Math.random().toString(36).substr(2, 9)
 };
 
-// Initialize Redis client
-// Using a demo Redis instance - replace with your own for production
+// Initialize Redis client with your Upstash credentials
 const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL || 'https://usw1-merry-cod-32768.upstash.io',
-  token: process.env.UPSTASH_REDIS_REST_TOKEN || 'AYQgASQgNzFjYWY4YTMtZjI4Zi00NzQyLWJkNzMtYWY4ZjI4ZjQ3NDJmYWY4ZjI4ZjQ3NDJmYWY4ZjI4ZjQ3NDJm'
+  url: 'https://brief-treefrog-47222.upstash.io',
+  token: 'Abh2AAIjcDEzZjlkMTdlYzlkODE0MTlhODdmMTFhNmJiOWQ5OWJiNXAxMA'
 });
 
 console.log(`Redis storage instance initialized: ${STORAGE_CONFIG.instanceId}`);
